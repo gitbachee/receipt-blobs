@@ -27,12 +27,14 @@ def notion_keep_ids():
     payload = {
         "filter": {
             "property": "GHID",
-            "rich_text": {"is_not_empty": True}   # ← archived 조건 제거
+            "number": {"is_not_empty": True}   # ← archived 조건 제거
         },
         "page_size": 100
     }
     while True:
         res = requests.post(url, headers=HDR_N, json=payload, timeout=30)
+        if res.status_code != 200:
+            print(res.text)           # ← 추가
         res.raise_for_status()
         jsn = res.json()
 
