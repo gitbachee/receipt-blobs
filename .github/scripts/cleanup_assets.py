@@ -21,44 +21,42 @@ HDR_N       = {"Authorization": f"Bearer {NOTION_TOKEN}",
                "Content-Type": "application/json"}
 
 # ────────── 1. 노션 DB → 유지해야 할 ID 집합 ──────────
+# .github/scripts/cleanup_assets.py  ⟶  notion_keep_ids 함수 전체 교체
 def notion_keep_ids():
     keep = set()
     url  = f"https://api.notion.com/v1/databases/{NOTION_DB}/query"
-    payload = { "page_size": 100 }          # ★ 필터 제거
+
+    payload = { "page_size": 100 }            # ★ 필터 제거
 
     while True:
         try:
             res = requests.post(url, headers=HDR_N, json=payload, timeout=30)
-            res.raise_for_status()
-        except requests.HTTPError as e:
-            print("── Notion 400 body ──")
-            print(res.text)                 # ★ 반드시 출력
+            res.raise_for_status()            # ⟵ 예외가 여기서 나면 except 로
+        except requests.HTTPError:
+            print("── Notion error body ──")   # ★ 반드시 찍힘
+            print(res.text)                   #   → 400 메시지 확인
             print("────────────────────")
-            raise                          # 실패 이유를 확인하고 싶으면 그대로 멈춤
+            raise
 
         jsn = res.json()
 
         for pg in jsn["results"]:
-            if pg.get("in_trash") or pg.get("archived"):
-                continue                    # 휴지통·아카이브 페이지 스킵
-
-            prop = pg["properties"].get("GHID")
-            if not prop:                    # GHID 열 자체가 비어 있으면 건너뜀
+            if pg.get("archived") or pg.get("in_trash"):
                 continue
 
-            # 타입별 분기
+            prop = pg["properties"].get("GHID")
+            if not prop:
+                continue                      # GHID 열 자체가 없음/빈칸
+
             if prop["type"] == "number" and prop["number"] is not None:
-                aid = int(prop["number"])
+                keep.add(int(prop["number"]))
             elif prop["type"] == "rich_text" and prop["rich_text"]:
-                aid = id_decode(prop["rich_text"][0]["plain_text"])
-            else:
-                continue                    # 값이 비어 있으면 스킵
+                keep.add(id_decode(prop["rich_text"][0]["plain_text"]))
 
-            keep.add(aid)
-
-        if not jsn.get("has_more"):
+        if jsn.get("has_more"):
+            payload["start_cursor"] = jsn["next_cursor"]
+        else:
             break
-        payload["start_cursor"] = jsn["next_cursor"]
 
     return keep
 
