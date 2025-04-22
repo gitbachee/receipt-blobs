@@ -34,7 +34,8 @@ def notion_keep_ids():
     while True:
         res = requests.post(url, headers=HDR_N, json=payload, timeout=30)
         if res.status_code != 200:
-            print(res.text)           # ← 추가
+            print("── Notion error body ──")
+            print(res.text)           # ←★ 이 줄 추가
         res.raise_for_status()
         jsn = res.json()
 
