@@ -26,25 +26,28 @@ def notion_keep_ids():
     url  = f"https://api.notion.com/v1/databases/{NOTION_DB}/query"
     payload = {
         "filter": {
-            "and": [
-                {"property": "GHAssetID", "number": {"is_not_empty": True}},
-                {"property": "archived",  "checkbox": {"equals": False}}
-            ]
+            "property": "GHID",
+            "rich_text": {"is_not_empty": True}   # ← archived 조건 제거
         },
         "page_size": 100
     }
-    while url:
+    while True:
         res = requests.post(url, headers=HDR_N, json=payload, timeout=30)
         res.raise_for_status()
         jsn = res.json()
+
         for pg in jsn["results"]:
-            # in_trash가 true면 휴지통이므로 제외
-            if pg.get("in_trash"):
+            if pg.get("in_trash") or pg.get("archived"):
                 continue
-            val = pg["properties"]["GHAssetID"]["number"]
-            if val: keep.add(int(val))
-        url = jsn.get("next_cursor") and f"{url}?start_cursor={jsn['next_cursor']}"
+            code = pg["properties"]["GHID"]["rich_text"][0]["plain_text"]
+            keep.add(id_decode(code))
+
+        if not jsn.get("has_more"):
+            break
+        payload["start_cursor"] = jsn["next_cursor"]
+
     return keep
+
 
 # ────────── 2. GitHub → 현재 존재하는 모든 자산 ID ──────────
 def github_all_asset_ids():
