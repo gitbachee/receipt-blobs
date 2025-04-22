@@ -20,30 +20,41 @@ HDR_N       = {"Authorization": f"Bearer {NOTION_TOKEN}",
                "Notion-Version": "2022-06-28",
                "Content-Type": "application/json"}
 
-# ────────── 1. 노션 DB → 유지해야 할 ID 집합 ──────────
+# ────────── 1. 노션 DB → 유지해야 할 ID 집합 ──────────
 def notion_keep_ids():
     keep = set()
     url  = f"https://api.notion.com/v1/databases/{NOTION_DB}/query"
-    payload = {
-        "filter": {
-            "property": "GHID",
-            "number": {"is_not_empty": True}   # ← archived 조건 제거
-        },
-        "page_size": 100
-    }
+    payload = { "page_size": 100 }          # ★ 필터 제거
+
     while True:
-        res = requests.post(url, headers=HDR_N, json=payload, timeout=30)
-        if res.status_code != 200:
-            print("── Notion error body ──")
-            print(res.text)           # ←★ 이 줄 추가
-        res.raise_for_status()
+        try:
+            res = requests.post(url, headers=HDR_N, json=payload, timeout=30)
+            res.raise_for_status()
+        except requests.HTTPError as e:
+            print("── Notion 400 body ──")
+            print(res.text)                 # ★ 반드시 출력
+            print("────────────────────")
+            raise                          # 실패 이유를 확인하고 싶으면 그대로 멈춤
+
         jsn = res.json()
 
         for pg in jsn["results"]:
             if pg.get("in_trash") or pg.get("archived"):
+                continue                    # 휴지통·아카이브 페이지 스킵
+
+            prop = pg["properties"].get("GHID")
+            if not prop:                    # GHID 열 자체가 비어 있으면 건너뜀
                 continue
-            code = pg["properties"]["GHID"]["rich_text"][0]["plain_text"]
-            keep.add(id_decode(code))
+
+            # 타입별 분기
+            if prop["type"] == "number" and prop["number"] is not None:
+                aid = int(prop["number"])
+            elif prop["type"] == "rich_text" and prop["rich_text"]:
+                aid = id_decode(prop["rich_text"][0]["plain_text"])
+            else:
+                continue                    # 값이 비어 있으면 스킵
+
+            keep.add(aid)
 
         if not jsn.get("has_more"):
             break
