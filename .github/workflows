@@ -1,0 +1,21 @@
+name: Manual GitHub‑Notion asset cleanup
+
+on: workflow_dispatch      # ← schedule 제거, 수동만
+
+permissions:
+  contents: write          # Release 자산 삭제 권한
+
+jobs:
+  purge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: pip install requests
+      - env:
+          GH_TOKEN:      ${{ secrets.GH_PAT }}         # 필요 시
+          NOTION_TOKEN:  ${{ secrets.NOTION_TOKEN }}
+          NOTION_DB:     ${{ secrets.NOTION_DB }}
+          GH_REPO:       ${{ github.repository }}
+        run: python .github/scripts/cleanup_assets.py
